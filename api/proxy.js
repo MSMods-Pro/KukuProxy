@@ -6,6 +6,7 @@ export default async function handler(req, res) {
     const method = req.method;
     const headers = { ...req.headers };
     
+    // टारगेट डोमेन के हिसाब से हेडर्स सेट करना
     headers['host'] = 'kukutv.app';
     headers['origin'] = 'https://kukutv.app';
     headers['referer'] = 'https://kukutv.app/';
@@ -35,25 +36,39 @@ export default async function handler(req, res) {
     const responseBuffer = await response.arrayBuffer();
     let responseBody = Buffer.from(responseBuffer);
 
-    // अगर रिस्पॉन्स JSON है, तो उसे और अधिक ताकतवर तरीके से मॉडिफाई करें
+    // अगर रिस्पॉन्स JSON है, तो उसे पूरी तरह से मॉडिफाई करें
     if (contentType.includes('application/json')) {
       try {
         let jsonString = responseBody.toString('utf8');
         let json = JSON.parse(jsonString);
 
-        // 1. यूजर प्रोफाइल और सब्सक्रिप्शन डेटा को प्रीमियम बनाना
+        // 1. यूज़र प्रोफाइल और सब्सक्रिप्शन डेटा को पूरी तरह प्रीमियम और एक्टिव दिखाना
         if (json.user) {
           json.user.has_premium = true;
           json.user.is_user_anonymous = false;
+          json.user.is_phone_verified = true;
+          json.user.is_email_verified = true;
         }
         if (typeof json.has_premium !== 'undefined') json.has_premium = true;
-        if (typeof json.is_vip_only !== 'undefined') json.is_vip_only = false; // VIP restrictive block हटाएं
-        if (typeof json.is_vip_user !== 'undefined') json.is_vip_user = true;
+        if (typeof json.is_vip_only !== 'undefined') json.is_vip_only = true;
+        if (typeof json.is_existing_subscriber !== 'undefined') json.is_existing_subscriber = true;
+
+        // वॉलेट और कॉइन्स को बढ़ाना ताकि कभी कोई रुकावट न आए
+        if (json.wallet) {
+          json.wallet.free_coins = 99999;
+          json.wallet.paid_coins = 99999;
+          json.wallet.total_coins = 199998;
+        }
+        if (json.user && json.user.wallet) {
+          json.user.wallet.free_coins = 99999;
+          json.user.wallet.paid_coins = 99999;
+          json.user.wallet.total_coins = 199998;
+        }
 
         // 2. डीप रिकर्सिव फंक्शन जो हर एक शो, एपिसोड, और लिस्ट के ताले तोड़ देगा
         const unlockEverything = (obj) => {
           if (obj && typeof obj === 'object') {
-            // सभी तरह के लॉक और प्रीमियम फ्लैग्स को अनलॉक करना
+            // सभी तरह के लॉक और प्रीमियम फ्लैग्स को बाईपास करना
             if ('is_locked' in obj) obj.is_locked = false;
             if ('locked' in obj) obj.locked = false;
             if ('is_premium' in obj) obj.is_premium = false;
@@ -84,7 +99,7 @@ export default async function handler(req, res) {
               obj.data.forEach(item => unlockEverything(item));
             }
 
-            // बाकी सभी नेस्टेड ऑब्जेक्ट्स के लिए लूप
+            // नेस्टेड ऑब्जेक्ट्स को डीप स्कैन करना
             Object.values(obj).forEach(val => {
               if (typeof val === 'object' && val !== null) {
                 unlockEverything(val);
